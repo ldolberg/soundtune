@@ -6,7 +6,7 @@ use std::sync::Arc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample, StreamConfig, SupportedStreamConfig};
 use rtrb::{Consumer, Producer, RingBuffer};
-use soundtune_dsp::{Meters, Params, Processor};
+use soundtune_dsp::{Meters, Params, Processor, SongPlayer};
 
 /// Seconds of processed audio kept between input and output before we start
 /// dropping samples to catch up.
@@ -71,8 +71,11 @@ impl Engine {
 
         let rate = in_rate.0 as f64;
         let (producer, consumer) = RingBuffer::<f32>::new(rate as usize);
-        let processor = Processor::new(rate as f32, params, meters);
+        let player = SongPlayer::new(&params.song, rate as f32, out_rate.0 as f32);
         let link = OutputLink {
+            params: Arc::clone(&params),
+            player,
+            mix: Vec::with_capacity(1 << 16),
             consumer,
             step: rate / out_rate.0 as f64,
             target: (rate * TARGET_LATENCY) as usize,
@@ -82,6 +85,7 @@ impl Engine {
             cur: 0.0,
         };
 
+        let processor = Processor::new(rate as f32, params, meters);
         let input_stream = build_input(&in_dev, &in_cfg, processor, producer)?;
         let output_stream = build_output(&out_dev, &out_cfg, link)?;
         input_stream.play().map_err(|e| e.to_string())?;
@@ -189,8 +193,13 @@ where
 }
 
 /// Reads processed audio from the ring buffer, keeps latency bounded and
-/// linearly resamples when input and output rates differ.
+/// linearly resamples when input and output rates differ. Mixes in the
+/// backing track.
 struct OutputLink {
+    params: Arc<Params>,
+    player: SongPlayer,
+    /// Output block being built, preallocated.
+    mix: Vec<f32>,
     consumer: Consumer<f32>,
     step: f64,
     target: usize,
@@ -246,13 +255,87 @@ where
         config,
         move |data: &mut [T], _| {
             link.catch_up();
-            for frame in data.chunks_mut(channels) {
-                let v = T::from_sample(link.next());
+            // Voice first, then the backing track on top. `mix` only grows
+            // if the device asks for a bigger buffer than ever before.
+            let mut mix = std::mem::take(&mut link.mix);
+            mix.clear();
+            mix.resize(data.len(), 0.0);
+            for frame in mix.chunks_mut(channels) {
+                let v = link.next();
                 frame.iter_mut().for_each(|s| *s = v);
             }
+            link.player.render(&link.params.song, &mut mix, channels);
+            for (d, &s) in data.iter_mut().zip(&mix) {
+                *d = T::from_sample(s.clamp(-1.0, 1.0));
+            }
+            link.mix = mix;
         },
         |err| eprintln!("output stream error: {err}"),
         None,
     )
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soundtune_dsp::{GuideMelody, GuideNote, Track, NO_NOTE};
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    /// Needs real audio devices, so it is ignored by default:
+    /// cargo test -p soundtune -- --ignored
+    /// Everything is silent: master and track volume are 0.
+    #[test]
+    #[ignore]
+    fn engine_plays_and_follows_a_song_silently() {
+        let params = Arc::new(Params::default());
+        let meters = Arc::new(Meters::default());
+        params.master.set(0.0);
+        params.tune_on.set(true);
+        let song = &params.song;
+        song.volume.set(0.0);
+        song.track.store(Some(Arc::new(Track {
+            rate: 44_100.0,
+            channels: 2,
+            samples: vec![0.0; 2 * 44_100 * 2],
+        })));
+        // Guide: A4 for the first second, C5 for the second.
+        song.guide.store(Some(Arc::new(GuideMelody {
+            rate: 1000.0,
+            notes: vec![
+                GuideNote {
+                    start: 0,
+                    end: 1000,
+                    note: 69,
+                },
+                GuideNote {
+                    start: 1000,
+                    end: 2000,
+                    note: 72,
+                },
+            ],
+        })));
+        song.length.set(2.0);
+        song.playing.set(true);
+
+        let engine = Engine::start(None, None, Arc::clone(&params), Arc::clone(&meters))
+            .expect("audio devices");
+        let start = Instant::now();
+        let mut seen = Vec::new();
+        while song.playing.get() && start.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(50));
+            seen.push(meters.guide_note.load(Ordering::Relaxed));
+        }
+        let took = start.elapsed().as_secs_f32();
+        // Let the processor see the end of the song.
+        std::thread::sleep(Duration::from_millis(100));
+        drop(engine);
+        println!("played 2 s in {took:.2} s");
+        assert!(!song.playing.get(), "the song should end");
+        assert!((1.8..3.0).contains(&took), "{took}");
+        assert!((song.seconds() - 2.0).abs() < 0.05, "{}", song.seconds());
+        assert!(seen.contains(&69) && seen.contains(&72), "{seen:?}");
+        assert_eq!(meters.guide_note.load(Ordering::Relaxed), NO_NOTE);
+    }
 }
