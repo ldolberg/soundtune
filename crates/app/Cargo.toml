@@ -3,6 +3,7 @@ name = "soundtune"
 version = "0.1.0"
 edition = "2021"
 description = "Live voice effects console (autotune, high pitch, distortion, reverb)"
+license = "MIT"
 
 [dependencies]
 soundtune-dsp = { path = "../dsp" }

@@ -3,5 +3,6 @@ name = "soundtune-dsp"
 version = "0.1.0"
 edition = "2021"
 description = "Real-time voice effects: autotune, pitch shift, distortion and reverb"
+license = "MIT"
 
 [dependencies]
