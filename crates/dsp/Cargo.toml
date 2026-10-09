@@ -6,5 +6,6 @@ description = "Real-time voice effects: autotune, pitch shift, distortion and re
 license = "MIT"
 
 [dependencies]
+arc-swap = "1.9.2"
 midly = { version = "0.5.3", default-features = false, features = ["std"] }
 rustfft = "6.4.1"

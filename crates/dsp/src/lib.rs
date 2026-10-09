@@ -19,6 +19,7 @@ mod pitch;
 mod processor;
 mod reverb;
 mod sing;
+mod song;
 mod tracker;
 
 pub use chroma::{chromagram, Chromagram, CHROMA_HIGH_HZ, CHROMA_LOW_HZ};
@@ -38,9 +39,10 @@ pub use key::{best_key, Key, KeyDetector};
 pub use music::{
     hz_to_midi, note_name, snap_preferring, snap_to_mask, snap_to_scale, MusicScale, NOTE_NAMES,
 };
-pub use params::{AtomicF32, Meters, Params, Toggle};
+pub use params::{AtomicF32, Meters, Params, Toggle, NO_NOTE};
 pub use pitch::PitchShifter;
-pub use processor::Processor;
+pub use processor::{Processor, CHORD_BIAS};
 pub use reverb::Reverb;
 pub use sing::{apply_sing_mode, bypass_all, Voice};
+pub use song::{SongPlayer, SongState, Track};
 pub use tracker::PitchTracker;
