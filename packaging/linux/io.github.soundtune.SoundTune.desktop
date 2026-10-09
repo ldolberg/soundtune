@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SoundTune
+Comment=Live voice effects: autotune, high pitch, distortion and reverb
+Exec=soundtune
+Icon=audio-input-microphone
+Terminal=false
+Categories=AudioVideo;Audio;

@@ -1,0 +1,11 @@
+[package]
+name = "soundtune"
+version = "0.1.0"
+edition = "2021"
+description = "Live voice effects console (autotune, high pitch, distortion, reverb)"
+
+[dependencies]
+soundtune-dsp = { path = "../dsp" }
+gtk = { package = "gtk4", version = "0.9", features = ["v4_12"] }
+cpal = "0.15"
+rtrb = "0.3"

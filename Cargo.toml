@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["crates/dsp", "crates/app"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# DSP runs in real time, keep it fast even in debug builds.
+[profile.dev.package.soundtune-dsp]
+opt-level = 3
