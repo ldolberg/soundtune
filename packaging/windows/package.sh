@@ -27,21 +27,36 @@ mkdir -p "$DIST/bin" "$DIST/lib" "$DIST/share/glib-2.0" "$DIST/share/icons"
 cp target/release/soundtune.exe "$DIST/bin/"
 
 # Every UCRT64 DLL the exe (and the pixbuf loaders) depend on.
+# MSYS2 ldd prints "name.dll => /ucrt64/bin/name.dll (0x...)"; keep only the
+# DLLs from the UCRT64 prefix (system DLLs live under /c/Windows). awk is used
+# for the filtering because, unlike grep, it does not exit non-zero when a
+# binary has no UCRT64 dependencies, which would abort under pipefail.
 copy_deps() {
-    ldd "$1" | awk '{print $3}' | grep -i "^$PREFIX/" | while read -r dll; do
-        cp -n "$dll" "$DIST/bin/" 2>/dev/null || true
-    done
+    local dll
+    ldd "$1" | awk -v prefix="$PREFIX/" \
+        'index(tolower($3), prefix) == 1 { print $3 }' |
+        while read -r dll; do
+            [[ -e "$DIST/bin/$(basename "$dll")" ]] || cp "$dll" "$DIST/bin/"
+        done
 }
 copy_deps "$DIST/bin/soundtune.exe"
 
 # Image loaders (needed for the SVG symbolic icons).
+PIXBUF_DIR=lib/gdk-pixbuf-2.0/2.10.0
 cp -r "$PREFIX/lib/gdk-pixbuf-2.0" "$DIST/lib/"
-for loader in "$DIST"/lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll; do
+shopt -s nullglob
+for loader in "$DIST/$PIXBUF_DIR"/loaders/*.dll; do
     copy_deps "$loader"
 done
-# The cache holds absolute MSYS2 paths; make them relative to bin/.
-sed -i "s#\"[^\"]*lib/gdk-pixbuf-2.0#\"../lib/gdk-pixbuf-2.0#" \
-    "$DIST/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+shopt -u nullglob
+# Keep only what the runtime needs (drops static import libs, if any).
+find "$DIST/lib/gdk-pixbuf-2.0" -name '*.a' -delete
+# On Windows gdk-pixbuf resolves relative module paths in loaders.cache
+# against the installation root (the parent of bin/), so rewrite every entry,
+# whether absolute ("C:/msys64/ucrt64/lib/...", "/ucrt64/lib/...") or already
+# relative, to "lib/gdk-pixbuf-2.0/...".
+sed -i -E 's#"[^"]*lib(/|\\\\)gdk-pixbuf-2\.0#"lib/gdk-pixbuf-2.0#' \
+    "$DIST/$PIXBUF_DIR/loaders.cache"
 
 # GSettings schemas and icon themes.
 cp -r "$PREFIX/share/glib-2.0/schemas" "$DIST/share/glib-2.0/"

@@ -1,9 +1,12 @@
 ; Inno Setup script: builds a Windows installer from dist\SoundTune.
 ; Run packaging/windows/package.sh first, then:
 ;   iscc packaging\windows\soundtune.iss
+; Override the version with /DAppVersion=1.2.3 (CI does this for tags).
 
 #define AppName "SoundTune"
-#define AppVersion "0.1.0"
+#ifndef AppVersion
+  #define AppVersion "0.1.0"
+#endif
 
 [Setup]
 AppId={{6F1B5B7E-2C1A-4C6E-9A8E-5D3B7F0A1C42}
