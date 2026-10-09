@@ -91,6 +91,36 @@ cargo test -p soundtune-dsp
 The DSP tests check pitch detection accuracy, octave shifting, autotune
 correction of a flat note, reverb decay and output bounds.
 
+## Development
+
+CI (`.github/workflows/build.yml`) runs these on every push and pull request,
+so run them locally before pushing:
+
+```sh
+cargo fmt --all --check                               # formatting
+cargo clippy --workspace --all-targets -- -D warnings # lints, warnings fail
+cargo test --workspace                                # unit tests
+```
+
+`cargo fmt --all` fixes formatting in place. The app crate needs the GTK4
+and ALSA development packages listed above even for clippy.
+
+### Cutting a release
+
+1. Bump `version` in `crates/app/Cargo.toml` (and `crates/dsp/Cargo.toml` if
+   it changed), commit and push to `main`, and wait for CI to pass.
+2. Tag the commit and push the tag:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The tag build runs the same jobs and then creates a GitHub Release with
+`soundtune-linux-x64.tar.gz`, `SoundTune-windows-x64.zip` and
+`SoundTune-setup-x64.exe` attached. The installer version is taken from the
+tag name.
+
 ## Notes
 
 * Latency is roughly the audio buffer size plus ~40 ms (30 ms grain for the
@@ -98,3 +128,7 @@ correction of a flat note, reverb decay and output bounds.
 * The pitch shifter is pitch synchronous: it uses the detected period to
   align its grains, which avoids the warbly "beating" of a naive delay line
   shifter.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
