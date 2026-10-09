@@ -103,7 +103,11 @@ impl PitchTracker {
                 sum += delta * delta;
             }
             running += sum;
-            d[tau] = if running > 0.0 { sum * tau as f32 / running } else { 1.0 };
+            d[tau] = if running > 0.0 {
+                sum * tau as f32 / running
+            } else {
+                1.0
+            };
         }
 
         let mut tau = self.tau_min;
@@ -123,7 +127,11 @@ impl PitchTracker {
         // Parabolic interpolation around the minimum.
         let (s0, s1, s2) = (d[tau - 1], d[tau], d[tau + 1]);
         let denom = s0 - 2.0 * s1 + s2;
-        let shift = if denom.abs() > 1e-9 { 0.5 * (s0 - s2) / denom } else { 0.0 };
+        let shift = if denom.abs() > 1e-9 {
+            0.5 * (s0 - s2) / denom
+        } else {
+            0.0
+        };
         Some(self.rate / (tau as f32 + shift.clamp(-1.0, 1.0)))
     }
 }
@@ -145,7 +153,12 @@ mod tests {
 
     #[test]
     fn detects_voice_range_pitches() {
-        for &(hz, sr) in &[(110.0, 48_000.0), (220.0, 44_100.0), (523.25, 48_000.0), (90.0, 16_000.0)] {
+        for &(hz, sr) in &[
+            (110.0, 48_000.0),
+            (220.0, 44_100.0),
+            (523.25, 48_000.0),
+            (90.0, 16_000.0),
+        ] {
             let got = detect(hz, sr).expect("voiced");
             assert!((got - hz).abs() / hz < 0.01, "{hz} Hz at {sr}: got {got}");
         }

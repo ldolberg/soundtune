@@ -102,8 +102,17 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
     cr.set_source_rgb(0.62, 0.64, 0.67);
     for c in (-100..=100).step_by(25) {
         let a = angle(c as f64);
-        let text = if c > 0 { format!("+{c}") } else { c.to_string() };
-        centered_text(cr, &text, cx + a.cos() * (r + 17.0), cy + a.sin() * (r + 17.0));
+        let text = if c > 0 {
+            format!("+{c}")
+        } else {
+            c.to_string()
+        };
+        centered_text(
+            cr,
+            &text,
+            cx + a.cos() * (r + 17.0),
+            cy + a.sin() * (r + 17.0),
+        );
     }
 
     // Inner face.

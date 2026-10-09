@@ -2,8 +2,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod audio;
-mod widgets;
 mod ui;
+mod widgets;
 
 use gtk::glib;
 use gtk::prelude::*;

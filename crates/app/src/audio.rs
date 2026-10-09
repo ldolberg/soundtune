@@ -59,7 +59,9 @@ impl Engine {
         };
         let out_dev = match output {
             Some(name) => find_device(host.output_devices(), name)?,
-            None => host.default_output_device().ok_or("no output device found")?,
+            None => host
+                .default_output_device()
+                .ok_or("no output device found")?,
         };
 
         let in_cfg = in_dev.default_input_config().map_err(|e| e.to_string())?;
@@ -92,7 +94,11 @@ impl Engine {
             out_dev.name().unwrap_or_else(|_| "output".into()),
             out_rate.0,
         );
-        Ok(Engine { _input: input_stream, _output: output_stream, description })
+        Ok(Engine {
+            _input: input_stream,
+            _output: output_stream,
+            description,
+        })
     }
 }
 
@@ -139,7 +145,14 @@ fn build_input(
     producer: Producer<f32>,
 ) -> Result<cpal::Stream, String> {
     let config = cfg.config();
-    dispatch_format!(cfg.sample_format(), input_stream, dev, &config, processor, producer)
+    dispatch_format!(
+        cfg.sample_format(),
+        input_stream,
+        dev,
+        &config,
+        processor,
+        producer
+    )
 }
 
 fn input_stream<T>(

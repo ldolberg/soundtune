@@ -53,7 +53,11 @@ impl Processor {
         let p = Arc::clone(&self.params);
         let pitch_on = p.pitch_on.get();
         let tune_on = p.tune_on.get();
-        let base = if pitch_on { p.pitch_semitones.get() } else { 0.0 };
+        let base = if pitch_on {
+            p.pitch_semitones.get()
+        } else {
+            0.0
+        };
         let mask = p.tune_mask.load(std::sync::atomic::Ordering::Relaxed);
         let dist_on = p.dist_on.get();
         let dist_mix = p.dist_mix.get().clamp(0.0, 1.0);
@@ -110,7 +114,9 @@ impl Processor {
             let mut y = dry;
             if use_shift {
                 self.shift += (self.target - self.shift) * alpha;
-                y = self.shifter.process(y, (self.shift / 12.0).exp2(), self.period);
+                y = self
+                    .shifter
+                    .process(y, (self.shift / 12.0).exp2(), self.period);
             }
             if dist_on {
                 y += (self.distortion.process(y) - y) * dist_mix;
@@ -136,7 +142,9 @@ mod tests {
     use std::f32::consts::PI;
 
     fn sine(hz: f32, sr: f32, len: usize) -> Vec<f32> {
-        (0..len).map(|n| 0.4 * (2.0 * PI * hz * n as f32 / sr).sin()).collect()
+        (0..len)
+            .map(|n| 0.4 * (2.0 * PI * hz * n as f32 / sr).sin())
+            .collect()
     }
 
     #[test]

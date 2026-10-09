@@ -21,7 +21,10 @@ fn rgb(cr: &cairo::Context, c: (f64, f64, f64)) {
 /// Draws `text` centred on (x, y).
 fn centered_text(cr: &cairo::Context, text: &str, x: f64, y: f64) {
     if let Ok(te) = cr.text_extents(text) {
-        cr.move_to(x - te.width() / 2.0 - te.x_bearing(), y - te.height() / 2.0 - te.y_bearing());
+        cr.move_to(
+            x - te.width() / 2.0 - te.x_bearing(),
+            y - te.height() / 2.0 - te.y_bearing(),
+        );
         let _ = cr.show_text(text);
     }
     // show_text leaves a current point that the next arc would connect to.

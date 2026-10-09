@@ -108,7 +108,13 @@ pub(crate) mod tests {
         let mut tracker = crate::PitchTracker::new(sample_rate);
         let mut found: Vec<f32> = signal
             .iter()
-            .filter_map(|&x| if tracker.push(x) { tracker.pitch() } else { None })
+            .filter_map(|&x| {
+                if tracker.push(x) {
+                    tracker.pitch()
+                } else {
+                    None
+                }
+            })
             .collect();
         assert!(!found.is_empty(), "no pitch found");
         found.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -120,7 +126,13 @@ pub(crate) mod tests {
         let sr = 48_000.0;
         let mut ps = PitchShifter::new(sr);
         let out: Vec<f32> = (0..sr as usize)
-            .map(|n| ps.process((2.0 * PI * 220.0 * n as f32 / sr).sin(), 2.0, Some(sr / 220.0)))
+            .map(|n| {
+                ps.process(
+                    (2.0 * PI * 220.0 * n as f32 / sr).sin(),
+                    2.0,
+                    Some(sr / 220.0),
+                )
+            })
             .collect();
         let hz = measure_hz(&out[4800..], sr);
         assert!((hz - 440.0).abs() < 3.0, "got {hz} Hz");

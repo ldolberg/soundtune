@@ -42,7 +42,11 @@ impl Geometry {
     fn new(w: f64, h: f64) -> Self {
         let whites = (LOW..=HIGH).filter(|&n| !is_black(n)).count() as f64;
         let white_w = w / whites;
-        Self { white_w, black_w: white_w * 0.6, black_h: h * 0.62 }
+        Self {
+            white_w,
+            black_w: white_w * 0.6,
+            black_h: h * 0.62,
+        }
     }
 
     /// Left edge of a white key, or of the white key a black key sits after.
@@ -81,7 +85,9 @@ impl Keyboard {
         let click = gtk::GestureClick::new();
         let (s, a) = (Rc::downgrade(&state), area.downgrade());
         click.connect_pressed(move |_, _, x, y| {
-            let (Some(s), Some(a)) = (s.upgrade(), a.upgrade()) else { return };
+            let (Some(s), Some(a)) = (s.upgrade(), a.upgrade()) else {
+                return;
+            };
             let geo = Geometry::new(a.width() as f64, a.height() as f64);
             if let Some(n) = geo.key_at(x, y) {
                 if let Some(cb) = s.on_toggle.borrow().as_ref() {
@@ -137,7 +143,12 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
         let _ = cr.fill();
         if n % 12 == 0 {
             cr.set_source_rgb(0.15, 0.15, 0.17);
-            centered_text(cr, &format!("C{}", n / 12 - 1), x + geo.white_w / 2.0, h - 10.0);
+            centered_text(
+                cr,
+                &format!("C{}", n / 12 - 1),
+                x + geo.white_w / 2.0,
+                h - 10.0,
+            );
         }
     }
 

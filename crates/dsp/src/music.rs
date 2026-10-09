@@ -79,7 +79,11 @@ pub fn snap_to_mask(midi: f32, mask: u32) -> f32 {
 /// Name like "A4" for a MIDI note number.
 pub fn note_name(midi: f32) -> String {
     let n = midi.round() as i32;
-    format!("{}{}", NOTE_NAMES[n.rem_euclid(12) as usize], n.div_euclid(12) - 1)
+    format!(
+        "{}{}",
+        NOTE_NAMES[n.rem_euclid(12) as usize],
+        n.div_euclid(12) - 1
+    )
 }
 
 #[cfg(test)]

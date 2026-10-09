@@ -116,12 +116,48 @@ struct Preset {
 }
 
 const PRESETS: [Preset; 6] = [
-    Preset { name: "Clean", pitch: None, tune: None, dist: None, verb: None },
-    Preset { name: "Chipmunk", pitch: Some(10.0), tune: None, dist: None, verb: Some((0.3, 0.5, 0.12)) },
-    Preset { name: "Robot Tune", pitch: None, tune: Some((0, MusicScale::Major, 0.0)), dist: None, verb: Some((0.5, 0.5, 0.15)) },
-    Preset { name: "Pop Star", pitch: None, tune: Some((0, MusicScale::Chromatic, 0.35)), dist: None, verb: Some((0.75, 0.4, 0.3)) },
-    Preset { name: "Megaphone", pitch: None, tune: None, dist: Some((0.55, 0.25, 1.0)), verb: None },
-    Preset { name: "Cathedral", pitch: None, tune: None, dist: None, verb: Some((0.95, 0.25, 0.5)) },
+    Preset {
+        name: "Clean",
+        pitch: None,
+        tune: None,
+        dist: None,
+        verb: None,
+    },
+    Preset {
+        name: "Chipmunk",
+        pitch: Some(10.0),
+        tune: None,
+        dist: None,
+        verb: Some((0.3, 0.5, 0.12)),
+    },
+    Preset {
+        name: "Robot Tune",
+        pitch: None,
+        tune: Some((0, MusicScale::Major, 0.0)),
+        dist: None,
+        verb: Some((0.5, 0.5, 0.15)),
+    },
+    Preset {
+        name: "Pop Star",
+        pitch: None,
+        tune: Some((0, MusicScale::Chromatic, 0.35)),
+        dist: None,
+        verb: Some((0.75, 0.4, 0.3)),
+    },
+    Preset {
+        name: "Megaphone",
+        pitch: None,
+        tune: None,
+        dist: Some((0.55, 0.25, 1.0)),
+        verb: None,
+    },
+    Preset {
+        name: "Cathedral",
+        pitch: None,
+        tune: None,
+        dist: None,
+        verb: Some((0.95, 0.25, 0.5)),
+    },
 ];
 
 impl Controls {
@@ -306,10 +342,14 @@ pub fn build(app: &gtk::Application) {
     let dist_on = power_button("Distortion on / off");
     let verb_on = power_button("Reverb on / off");
 
-    let retune = Knob::new("Retune Speed", 0.0, 1.0, 0.1, 120, |v| format!("{:.0} ms", v * 250.0));
-    let pitch = Knob::new("High Pitch", -12.0, 12.0, 7.0, 120, |v| format!("{v:+.0} st"))
-        .bipolar()
-        .stepped(1.0);
+    let retune = Knob::new("Retune Speed", 0.0, 1.0, 0.1, 120, |v| {
+        format!("{:.0} ms", v * 250.0)
+    });
+    let pitch = Knob::new("High Pitch", -12.0, 12.0, 7.0, 120, |v| {
+        format!("{v:+.0} st")
+    })
+    .bipolar()
+    .stepped(1.0);
     let drive = Knob::new("Distortion", 0.0, 1.0, 0.5, 120, percent);
     let room = Knob::new("Reverb", 0.0, 1.0, 0.7, 120, percent);
     retune.prepend_header(&tune_on);
@@ -363,7 +403,11 @@ pub fn build(app: &gtk::Application) {
             let Some(s) = s.upgrade() else { return };
             if !s.updating.get() {
                 let bit = 1 << pc;
-                s.set_mask(if b.is_active() { s.mask.get() | bit } else { s.mask.get() & !bit });
+                s.set_mask(if b.is_active() {
+                    s.mask.get() | bit
+                } else {
+                    s.mask.get() & !bit
+                });
             }
         });
     }
@@ -388,9 +432,20 @@ pub fn build(app: &gtk::Application) {
     let key_box = labeled("Key", &key_dd);
     strip.append(&section("Autotune", None, &[key_box.upcast_ref()]));
     strip.append(&separator());
-    strip.append(&section("Distortion", None, &[tone.widget().upcast_ref(), dist_mix.widget().upcast_ref()]));
+    strip.append(&section(
+        "Distortion",
+        None,
+        &[tone.widget().upcast_ref(), dist_mix.widget().upcast_ref()],
+    ));
     strip.append(&separator());
-    strip.append(&section("Reverb", None, &[damping.widget().upcast_ref(), verb_mix.widget().upcast_ref()]));
+    strip.append(&section(
+        "Reverb",
+        None,
+        &[
+            damping.widget().upcast_ref(),
+            verb_mix.widget().upcast_ref(),
+        ],
+    ));
     strip.append(&separator());
     let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
@@ -419,8 +474,17 @@ pub fn build(app: &gtk::Application) {
     // Scale panel.
     let set_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
     set_box.set_valign(gtk::Align::Center);
-    for sc in [MusicScale::Major, MusicScale::Minor, MusicScale::Pentatonic, MusicScale::Chromatic] {
-        let label = if sc == MusicScale::Chromatic { "All" } else { sc.name() };
+    for sc in [
+        MusicScale::Major,
+        MusicScale::Minor,
+        MusicScale::Pentatonic,
+        MusicScale::Chromatic,
+    ] {
+        let label = if sc == MusicScale::Chromatic {
+            "All"
+        } else {
+            sc.name()
+        };
         let b = gtk::Button::with_label(label);
         b.add_css_class("set");
         let s = Rc::clone(&scale);

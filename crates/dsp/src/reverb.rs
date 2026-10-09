@@ -47,11 +47,18 @@ impl Reverb {
         Self {
             combs: COMB_TUNING
                 .iter()
-                .map(|&n| Comb { buf: vec![0.0; len(n)], idx: 0, store: 0.0 })
+                .map(|&n| Comb {
+                    buf: vec![0.0; len(n)],
+                    idx: 0,
+                    store: 0.0,
+                })
                 .collect(),
             allpasses: ALLPASS_TUNING
                 .iter()
-                .map(|&n| AllPass { buf: vec![0.0; len(n)], idx: 0 })
+                .map(|&n| AllPass {
+                    buf: vec![0.0; len(n)],
+                    idx: 0,
+                })
                 .collect(),
         }
     }

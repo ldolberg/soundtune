@@ -57,8 +57,16 @@ impl Inner {
         cr.arc(cx, cy, r, START, START + SWEEP);
         let _ = cr.stroke();
 
-        let from = if self.bipolar.get() { START + SWEEP / 2.0 } else { START };
-        let (a0, a1) = if angle < from { (angle, from) } else { (from, angle) };
+        let from = if self.bipolar.get() {
+            START + SWEEP / 2.0
+        } else {
+            START
+        };
+        let (a0, a1) = if angle < from {
+            (angle, from)
+        } else {
+            (from, angle)
+        };
         if a1 - a0 > 1e-3 {
             rgb(cr, if active { ACCENT } else { MUTED });
             cr.arc(cx, cy, r, a0, a1);
@@ -192,7 +200,11 @@ impl Knob {
             let weak = Rc::downgrade(&inner);
             scroll.connect_scroll(move |_, _, dy| {
                 if let Some(i) = weak.upgrade() {
-                    let step = if i.step.get() > 0.0 { i.step.get() } else { (i.max - i.min) / 50.0 };
+                    let step = if i.step.get() > 0.0 {
+                        i.step.get()
+                    } else {
+                        (i.max - i.min) / 50.0
+                    };
                     i.set(i.value.get() - dy.signum() * step);
                 }
                 glib::Propagation::Stop
@@ -200,13 +212,19 @@ impl Knob {
         }
         area.add_controller(scroll);
 
-        Self { root, header, inner }
+        Self {
+            root,
+            header,
+            inner,
+        }
     }
 
     /// Draws the value arc from the centre; double click resets to the centre.
     pub fn bipolar(self) -> Self {
         self.inner.bipolar.set(true);
-        self.inner.default.set((self.inner.min + self.inner.max) / 2.0);
+        self.inner
+            .default
+            .set((self.inner.min + self.inner.max) / 2.0);
         self
     }
 
