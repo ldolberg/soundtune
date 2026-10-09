@@ -22,7 +22,15 @@ impl Biquad {
     }
 
     pub fn identity() -> Self {
-        Self { b0: 1.0, b1: 0.0, b2: 0.0, a1: 0.0, a2: 0.0, z1: 0.0, z2: 0.0 }
+        Self {
+            b0: 1.0,
+            b1: 0.0,
+            b2: 0.0,
+            a1: 0.0,
+            a2: 0.0,
+            z1: 0.0,
+            z2: 0.0,
+        }
     }
 
     /// Replaces the coefficients but keeps the filter state, so changes
@@ -127,13 +135,16 @@ impl Brightness {
         }
         self.amount = amount;
         let sr = self.sample_rate;
-        self.presence.copy_coefs(&Biquad::peaking(3200.0, 0.9, 6.0 * amount, sr));
-        self.air.copy_coefs(&Biquad::high_shelf(10_000.0, 9.0 * amount, sr));
+        self.presence
+            .copy_coefs(&Biquad::peaking(3200.0, 0.9, 6.0 * amount, sr));
+        self.air
+            .copy_coefs(&Biquad::high_shelf(10_000.0, 9.0 * amount, sr));
     }
 
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
-        self.air.process(self.presence.process(self.low_cut.process(x)))
+        self.air
+            .process(self.presence.process(self.low_cut.process(x)))
     }
 }
 

@@ -28,7 +28,11 @@ impl Key {
 
     /// Like "A minor".
     pub fn name(self) -> String {
-        format!("{} {}", NOTE_NAMES[self.root as usize % 12], if self.minor { "minor" } else { "major" })
+        format!(
+            "{} {}",
+            NOTE_NAMES[self.root as usize % 12],
+            if self.minor { "minor" } else { "major" }
+        )
     }
 
     pub fn encode(self) -> u32 {
@@ -36,13 +40,20 @@ impl Key {
     }
 
     pub fn decode(v: u32) -> Option<Key> {
-        (v < 24).then_some(Key { root: v % 12, minor: v >= 12 })
+        (v < 24).then_some(Key {
+            root: v % 12,
+            minor: v >= 12,
+        })
     }
 }
 
 // Krumhansl-Kessler key profiles.
-const MAJOR: [f32; 12] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const MINOR: [f32; 12] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+const MAJOR: [f32; 12] = [
+    6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
+];
+const MINOR: [f32; 12] = [
+    6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
+];
 
 /// Pitch estimates between two key estimates.
 const EVALUATE_EVERY: u32 = 25;
@@ -117,7 +128,9 @@ impl KeyDetector {
 
     fn fit(&self, hist: &[f32; 12], key: Key) -> f32 {
         let profile = &self.profiles[key.minor as usize];
-        (0..12).map(|pc| hist[pc] * profile[(pc + 12 - key.root as usize) % 12]).sum()
+        (0..12)
+            .map(|pc| hist[pc] * profile[(pc + 12 - key.root as usize) % 12])
+            .sum()
     }
 
     fn evaluate(&mut self) -> bool {
@@ -125,7 +138,10 @@ impl KeyDetector {
             return false;
         }
         let hist = normalise(&self.hist);
-        let mut best = Key { root: 0, minor: false };
+        let mut best = Key {
+            root: 0,
+            minor: false,
+        };
         let mut best_fit = f32::MIN;
         for v in 0..24 {
             let key = Key::decode(v).unwrap_or(best);
@@ -165,9 +181,27 @@ mod tests {
             assert_eq!(Key::decode(v).unwrap().encode(), v);
         }
         assert_eq!(Key::decode(Key::NONE), None);
-        assert_eq!(Key { root: 9, minor: true }.name(), "A minor");
+        assert_eq!(
+            Key {
+                root: 9,
+                minor: true
+            }
+            .name(),
+            "A minor"
+        );
         // Relative keys share their notes.
-        assert_eq!(Key { root: 9, minor: true }.mask(), Key { root: 0, minor: false }.mask());
+        assert_eq!(
+            Key {
+                root: 9,
+                minor: true
+            }
+            .mask(),
+            Key {
+                root: 0,
+                minor: false
+            }
+            .mask()
+        );
     }
 
     #[test]
@@ -181,24 +215,54 @@ mod tests {
     fn finds_g_major_from_a_melody() {
         let mut det = KeyDetector::new(100.0, 10.0);
         // G A B C D E F# G, a bit out of tune, then a G major arpeggio.
-        let melody = [67.1, 69.0, 70.8, 72.0, 74.2, 76.0, 77.9, 79.0, 67.0, 71.0, 74.0, 71.0, 67.0];
+        let melody = [
+            67.1, 69.0, 70.8, 72.0, 74.2, 76.0, 77.9, 79.0, 67.0, 71.0, 74.0, 71.0, 67.0,
+        ];
         sing(&mut det, &melody, 0.4);
         let key = det.key().expect("a key");
-        assert_eq!(key.mask(), Key { root: 7, minor: false }.mask(), "got {}", key.name());
+        assert_eq!(
+            key.mask(),
+            Key {
+                root: 7,
+                minor: false
+            }
+            .mask(),
+            "got {}",
+            key.name()
+        );
     }
 
     #[test]
     fn finds_a_minor_and_follows_a_key_change() {
         let mut det = KeyDetector::new(100.0, 6.0);
         // A minor arpeggio and scale fragments, leaning on A, C and E.
-        let a_minor = [57.0, 60.0, 64.0, 69.0, 64.0, 60.0, 57.0, 59.0, 62.0, 65.0, 64.0, 57.0];
+        let a_minor = [
+            57.0, 60.0, 64.0, 69.0, 64.0, 60.0, 57.0, 59.0, 62.0, 65.0, 64.0, 57.0,
+        ];
         sing(&mut det, &a_minor, 0.4);
-        assert_eq!(det.key(), Some(Key { root: 9, minor: true }));
+        assert_eq!(
+            det.key(),
+            Some(Key {
+                root: 9,
+                minor: true
+            })
+        );
 
         // Then a long stretch in E major (G#, C#, D#, F#).
-        let e_major = [64.0, 68.0, 71.0, 76.0, 73.0, 75.0, 66.0, 64.0, 68.0, 71.0, 63.0, 64.0];
+        let e_major = [
+            64.0, 68.0, 71.0, 76.0, 73.0, 75.0, 66.0, 64.0, 68.0, 71.0, 63.0, 64.0,
+        ];
         sing(&mut det, &e_major, 1.0);
         let key = det.key().unwrap();
-        assert_eq!(key.mask(), Key { root: 4, minor: false }.mask(), "got {}", key.name());
+        assert_eq!(
+            key.mask(),
+            Key {
+                root: 4,
+                minor: false
+            }
+            .mask(),
+            "got {}",
+            key.name()
+        );
     }
 }

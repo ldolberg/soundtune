@@ -52,7 +52,11 @@ impl NoiseGate {
     #[inline]
     pub fn process(&mut self, x: f32, threshold_db: f32) -> f32 {
         let a = x.abs();
-        self.env = if a > self.env { a } else { self.env * self.env_rel };
+        self.env = if a > self.env {
+            a
+        } else {
+            self.env * self.env_rel
+        };
 
         let open_at = db_to_lin(threshold_db);
         if self.env > open_at {
@@ -66,7 +70,11 @@ impl NoiseGate {
             }
         }
 
-        let (target, speed) = if self.open { (1.0, self.attack) } else { (0.0, self.release) };
+        let (target, speed) = if self.open {
+            (1.0, self.attack)
+        } else {
+            (0.0, self.release)
+        };
         self.gain += (target - self.gain) * speed;
         x * self.gain
     }
@@ -127,7 +135,11 @@ impl Compressor {
         self.ms += (x * x - self.ms) * self.ms_coef;
         let level_db = 10.0 * (self.ms + 1e-10).log10();
         let target = Self::curve(level_db, threshold_db, ratio);
-        let speed = if target < self.gr { self.attack } else { self.release };
+        let speed = if target < self.gr {
+            self.attack
+        } else {
+            self.release
+        };
         self.gr += (target - self.gr) * speed;
         x * db_to_lin(self.gr + makeup_db)
     }
@@ -168,7 +180,9 @@ pub(crate) mod tests {
         assert!(!gate.is_open());
         assert!(db(rms(&out[4800..])) < db(rms(&hiss)) - 40.0);
 
-        let tone: Vec<f32> = (0..24_000).map(|n| 0.3 * (2.0 * PI * 220.0 * n as f32 / sr).sin()).collect();
+        let tone: Vec<f32> = (0..24_000)
+            .map(|n| 0.3 * (2.0 * PI * 220.0 * n as f32 / sr).sin())
+            .collect();
         let out: Vec<f32> = tone.iter().map(|&x| gate.process(x, -45.0)).collect();
         assert!(gate.is_open());
         assert!((rms(&out[2400..]) / rms(&tone[2400..]) - 1.0).abs() < 0.01);
@@ -182,7 +196,10 @@ pub(crate) mod tests {
             gate.process(0.3 * (n as f32 * 0.05).sin(), -40.0);
         }
         assert!(gate.is_open());
-        let tail: Vec<f32> = noise(22_050, 0.001).iter().map(|&x| gate.process(x, -40.0)).collect();
+        let tail: Vec<f32> = noise(22_050, 0.001)
+            .iter()
+            .map(|&x| gate.process(x, -40.0))
+            .collect();
         assert!(!gate.is_open());
         assert!(tail[17_640..].iter().all(|s| s.abs() < 1e-4));
     }
@@ -204,7 +221,14 @@ pub(crate) mod tests {
         let level = |amp: f32| {
             let mut c = Compressor::new(sr);
             let out: Vec<f32> = (0..48_000)
-                .map(|n| c.process(amp * (2.0 * PI * 200.0 * n as f32 / sr).sin(), thr, ratio, makeup))
+                .map(|n| {
+                    c.process(
+                        amp * (2.0 * PI * 200.0 * n as f32 / sr).sin(),
+                        thr,
+                        ratio,
+                        makeup,
+                    )
+                })
                 .collect();
             assert!(out.iter().all(|s| s.is_finite()));
             db(rms(&out[24_000..]))

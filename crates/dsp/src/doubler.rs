@@ -22,7 +22,10 @@ impl Doubler {
             mask: size - 1,
             write: 0,
             delays,
-            shifters: [PitchShifter::new(sample_rate), PitchShifter::new(sample_rate)],
+            shifters: [
+                PitchShifter::new(sample_rate),
+                PitchShifter::new(sample_rate),
+            ],
         }
     }
 
@@ -51,10 +54,15 @@ mod tests {
     #[test]
     fn copies_are_detuned_both_ways() {
         let sr = 48_000.0;
-        let input: Vec<f32> = (0..sr as usize).map(|n| 0.5 * (2.0 * PI * 220.0 * n as f32 / sr).sin()).collect();
+        let input: Vec<f32> = (0..sr as usize)
+            .map(|n| 0.5 * (2.0 * PI * 220.0 * n as f32 / sr).sin())
+            .collect();
         // Each voice on its own: run one doubler and read the shifters'
         // pitch through a large detune so the tracker can resolve it.
-        for (cents, expect) in [(100.0, 220.0 * 2f32.powf(1.0 / 12.0)), (-100.0, 220.0 / 2f32.powf(1.0 / 12.0))] {
+        for (cents, expect) in [
+            (100.0, 220.0 * 2f32.powf(1.0 / 12.0)),
+            (-100.0, 220.0 / 2f32.powf(1.0 / 12.0)),
+        ] {
             let mut d = Doubler::new(sr);
             let out: Vec<f32> = input
                 .iter()
@@ -66,7 +74,10 @@ mod tests {
                 })
                 .collect();
             let hz = crate::pitch::tests::measure_hz(&out[9600..], sr);
-            assert!((hz - expect).abs() < 2.0, "{cents} cents: got {hz} Hz, want {expect}");
+            assert!(
+                (hz - expect).abs() < 2.0,
+                "{cents} cents: got {hz} Hz, want {expect}"
+            );
         }
     }
 
@@ -76,7 +87,11 @@ mod tests {
         let mut d = Doubler::new(sr);
         let mut first = None;
         for n in 0..(sr as usize) {
-            let x = if n < 4410 { (2.0 * PI * 300.0 * n as f32 / sr).sin() } else { 0.0 };
+            let x = if n < 4410 {
+                (2.0 * PI * 300.0 * n as f32 / sr).sin()
+            } else {
+                0.0
+            };
             let y = d.process(x, 12.0, Some(sr / 300.0));
             assert!(y.is_finite() && y.abs() <= 1.0);
             if first.is_none() && y.abs() > 1e-3 {

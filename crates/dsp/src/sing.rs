@@ -17,7 +17,12 @@ pub enum Voice {
 }
 
 impl Voice {
-    pub const ALL: [Voice; 4] = [Voice::Natural, Voice::PopPrincess, Voice::Robot, Voice::Chipmunk];
+    pub const ALL: [Voice; 4] = [
+        Voice::Natural,
+        Voice::PopPrincess,
+        Voice::Robot,
+        Voice::Chipmunk,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -102,7 +107,16 @@ pub fn apply_sing_mode(p: &Params, voice: Voice, polish: f32) {
 
 /// Turns every effect off (volume, scale and safety settings are kept).
 pub fn bypass_all(p: &Params) {
-    for t in [&p.pitch_on, &p.tune_on, &p.dist_on, &p.verb_on, &p.gate_on, &p.comp_on, &p.bright_on, &p.double_on] {
+    for t in [
+        &p.pitch_on,
+        &p.tune_on,
+        &p.dist_on,
+        &p.verb_on,
+        &p.gate_on,
+        &p.comp_on,
+        &p.bright_on,
+        &p.double_on,
+    ] {
         t.set(false);
     }
 }
@@ -115,7 +129,13 @@ mod tests {
     fn polish_turns_up_the_gloss() {
         let p = Params::default();
         apply_sing_mode(&p, Voice::PopPrincess, 0.2);
-        let soft = (p.tune_speed.get(), p.comp_ratio.get(), p.brightness.get(), p.double_mix.get(), p.verb_mix.get());
+        let soft = (
+            p.tune_speed.get(),
+            p.comp_ratio.get(),
+            p.brightness.get(),
+            p.double_mix.get(),
+            p.verb_mix.get(),
+        );
         apply_sing_mode(&p, Voice::PopPrincess, 1.0);
         assert!(p.tune_on.get() && p.gate_on.get() && p.comp_on.get());
         assert!(p.bright_on.get() && p.double_on.get() && p.verb_on.get());

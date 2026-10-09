@@ -13,13 +13,20 @@ pub const CEILING: f32 = 0.89;
 
 impl Limiter {
     pub fn new(sample_rate: f32) -> Self {
-        Self { gain: 1.0, release: coef(0.1, sample_rate) }
+        Self {
+            gain: 1.0,
+            release: coef(0.1, sample_rate),
+        }
     }
 
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
         let a = x.abs();
-        let needed = if a * self.gain > CEILING { CEILING / a } else { 1.0 };
+        let needed = if a * self.gain > CEILING {
+            CEILING / a
+        } else {
+            1.0
+        };
         if needed < self.gain {
             self.gain = needed;
         } else {
@@ -120,7 +127,11 @@ impl FeedbackGuard {
         if self.hold > 0 {
             self.hold -= 1;
         }
-        let (target, speed) = if self.hold > 0 { (DUCK, self.attack) } else { (1.0, self.release) };
+        let (target, speed) = if self.hold > 0 {
+            (DUCK, self.attack)
+        } else {
+            (1.0, self.release)
+        };
         self.gain += (target - self.gain) * speed;
         x * self.gain
     }
@@ -212,7 +223,10 @@ mod tests {
         let mut g = FeedbackGuard::new(sr);
         let mut out = 0.0f32;
         for n in 0..(2 * sr as usize) {
-            out = g.process(0.8 * (2.0 * PI * 900.0 * n as f32 / sr).sin()).abs().max(out * 0.999);
+            out = g
+                .process(0.8 * (2.0 * PI * 900.0 * n as f32 / sr).sin())
+                .abs()
+                .max(out * 0.999);
         }
         assert!(g.active());
         assert!(out < 0.2, "output still {out}");
@@ -229,7 +243,9 @@ mod tests {
         // A steady, loud, autotuned-like vowel: 220 Hz with harmonics.
         let voice = (0..4 * sr as usize).map(|n| {
             let t = n as f32 / sr;
-            (1..=8).map(|k| 0.35 / k as f32 * (2.0 * PI * 220.0 * k as f32 * t + k as f32).sin()).sum()
+            (1..=8)
+                .map(|k| 0.35 / k as f32 * (2.0 * PI * 220.0 * k as f32 * t + k as f32).sin())
+                .sum()
         });
         assert_eq!(trigger_time(voice, sr), None);
 

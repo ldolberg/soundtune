@@ -21,7 +21,10 @@ fn main() {
             phase += 2.0 * PI * hz / sr;
             noise = noise.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             let hiss = (noise >> 9) as f32 / (1u32 << 23) as f32 - 0.5;
-            (1..=6).map(|k| 0.2 / k as f32 * (k as f32 * phase).sin()).sum::<f32>() + 0.002 * hiss
+            (1..=6)
+                .map(|k| 0.2 / k as f32 * (k as f32 * phase).sin())
+                .sum::<f32>()
+                + 0.002 * hiss
         })
         .collect();
 
@@ -39,7 +42,9 @@ fn main() {
     };
 
     report("bypass", &|_| {});
-    report("Pop Princess (polish 100%)", &|p| apply_sing_mode(p, Voice::PopPrincess, 1.0));
+    report("Pop Princess (polish 100%)", &|p| {
+        apply_sing_mode(p, Voice::PopPrincess, 1.0)
+    });
     report("everything on", &|p| {
         apply_sing_mode(p, Voice::PopPrincess, 1.0);
         p.pitch_on.set(true);
