@@ -44,5 +44,5 @@ pub use pitch::PitchShifter;
 pub use processor::{Processor, CHORD_BIAS};
 pub use reverb::Reverb;
 pub use sing::{apply_sing_mode, bypass_all, Voice};
-pub use song::{SongPlayer, SongState, Track};
+pub use song::{SongPlayer, SongState, SongTarget, Track};
 pub use tracker::PitchTracker;

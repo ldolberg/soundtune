@@ -162,8 +162,9 @@ pub struct Meters {
     pub reduction: AtomicF32,
     /// Set while the feedback guard is turning the output down.
     pub feedback: Toggle,
-    /// Note (MIDI number) the autotune is steering the voice to, 0 when
-    /// there is none (silence or autotune off).
+    /// Note (MIDI number) the autotune is steering the voice to, in the
+    /// singer's own pitch (before High Pitch), 0 when there is none
+    /// (silence). Only updated while the autotune is on.
     pub target_note: AtomicF32,
     /// While following a song: the notes allowed right now (bit 0 = C),
     /// 0 when not following.

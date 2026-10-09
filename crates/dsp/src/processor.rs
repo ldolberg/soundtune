@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::{
     hz_to_midi, nearest_octave, snap_preferring, snap_to_mask, Brightness, Compressor, Distortion,
     Doubler, FeedbackGuard, Key, KeyDetector, Limiter, Meters, NoiseGate, Params, PitchShifter,
-    PitchTracker, Reverb, NO_NOTE,
+    PitchTracker, Reverb, SongTarget,
 };
 
 /// Pitch estimates per second from the tracker (one every ~10 ms).
@@ -14,15 +14,6 @@ const KEY_WINDOW: f32 = 12.0;
 /// When following a song, chord tones count as this many semitones closer
 /// than other notes of the key.
 pub const CHORD_BIAS: f32 = 0.4;
-
-/// What the song wants at the current position.
-#[derive(Debug, Clone, Copy)]
-enum SongTarget {
-    /// Sing exactly this note (MIDI number, any octave).
-    Guide(f32),
-    /// Stay on these notes, preferring the chord tones.
-    Notes { scale: u32, chord: u32 },
-}
 
 /// The full effects chain:
 /// gate -> autotune / high pitch -> compressor -> brightness -> doubler ->
@@ -88,41 +79,15 @@ impl Processor {
     /// following a playing song. Lock and allocation free.
     fn song_target(&self) -> Option<SongTarget> {
         let song = &self.params.song;
-        if !song.follow.get() || !song.playing.get() {
+        if !song.follow.get() {
             return None;
         }
         let secs = song.position.load(Ordering::Relaxed) as f64 / self.sample_rate as f64;
-
-        let guide = song.guide.load();
-        if let Some(g) = guide.as_deref() {
-            let t = secs - song.guide_offset_ms.get() as f64 / 1000.0;
-            if t >= 0.0 {
-                if let Some(note) = g.note_at((t * g.rate as f64) as u64) {
-                    return Some(SongTarget::Guide(
-                        note as f32 + song.guide_shift.get().round(),
-                    ));
-                }
-            }
-        }
-        let harmony = song.harmony.load();
-        let seg = harmony
-            .as_deref()
-            .and_then(|h| h.at((secs * h.rate as f64) as u64))?;
-        Some(SongTarget::Notes {
-            scale: seg.scale,
-            chord: seg.chord_mask(),
-        })
+        song.target_at(secs)
     }
 
     fn publish_song_target(&self, target: Option<SongTarget>) {
-        let (mask, chord, guide) = match target {
-            None => (0, 0, NO_NOTE),
-            Some(SongTarget::Guide(n)) => {
-                let n = n.round() as i32;
-                (1 << n.rem_euclid(12), 0, n.max(0) as u32)
-            }
-            Some(SongTarget::Notes { scale, chord }) => (scale | chord, chord, NO_NOTE),
-        };
+        let (mask, chord, guide) = SongTarget::display(target);
         self.meters.song_mask.store(mask, Ordering::Relaxed);
         self.meters.song_chord.store(chord, Ordering::Relaxed);
         self.meters.guide_note.store(guide, Ordering::Relaxed);
@@ -231,7 +196,7 @@ impl Processor {
                                 }
                                 None => snap_to_mask(wanted, mask),
                             };
-                            self.meters.target_note.set(note);
+                            self.meters.target_note.set(note - base);
                             base + (note - wanted) * amount
                         }
                         None => {
@@ -289,6 +254,7 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::NO_NOTE;
     use std::f32::consts::PI;
 
     fn sine(hz: f32, sr: f32, len: usize) -> Vec<f32> {
@@ -563,11 +529,25 @@ mod tests {
         );
         assert_eq!(meters.song_mask.load(Ordering::Relaxed), c.mask());
 
-        // Paused: the static scale (G# only) applies again.
+        // Paused, the song still sets the notes at the paused position.
         params.song.playing.set(false);
+        let hz = run(&mut proc, 311.1, sr);
+        assert!((hz - 329.6).abs() < 3.0, "got {hz} Hz");
+
+        // Past the end of the song the static scale (G# only) applies.
+        params
+            .song
+            .position
+            .store(11 * sr as u64, Ordering::Relaxed);
         let hz = run(&mut proc, 430.0, sr);
         assert!((hz - 415.3).abs() < 3.0, "got {hz} Hz");
         assert_eq!(meters.song_mask.load(Ordering::Relaxed), 0);
+
+        // So it does with Follow off.
+        params.song.position.store(0, Ordering::Relaxed);
+        params.song.follow.set(false);
+        let hz = run(&mut proc, 430.0, sr);
+        assert!((hz - 415.3).abs() < 3.0, "got {hz} Hz");
     }
 
     #[test]

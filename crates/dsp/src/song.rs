@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use arc_swap::ArcSwapOption;
 
-use crate::{AtomicF32, GuideMelody, Harmony, Toggle};
+use crate::{AtomicF32, GuideMelody, Harmony, Toggle, NO_NOTE};
 
 /// A decoded backing track: mono or stereo at its own sample rate.
 pub struct Track {
@@ -121,10 +121,58 @@ impl fmt::Debug for SongState {
     }
 }
 
+/// What the song wants the singer to sing at some moment.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SongTarget {
+    /// Exactly this note (MIDI number, in whatever octave is closest).
+    Guide(f32),
+    /// The key's notes, preferring the chord tones.
+    Notes { scale: u32, chord: u32 },
+}
+
+impl SongTarget {
+    /// (allowed notes mask, chord mask, guide note or `NO_NOTE`) as shown
+    /// in `Meters`; `(0, 0, NO_NOTE)` for `None`.
+    pub fn display(target: Option<SongTarget>) -> (u32, u32, u32) {
+        match target {
+            None => (0, 0, NO_NOTE),
+            Some(SongTarget::Guide(n)) => {
+                let n = n.round() as i32;
+                (1 << n.rem_euclid(12), 0, n.max(0) as u32)
+            }
+            Some(SongTarget::Notes { scale, chord }) => (scale | chord, chord, NO_NOTE),
+        }
+    }
+}
+
 impl SongState {
     /// Current position in seconds.
     pub fn seconds(&self) -> f64 {
         self.position.load(Ordering::Relaxed) as f64 / self.clock_rate.get().max(1.0) as f64
+    }
+
+    /// What the song wants at `secs`: the guide note if one is sounding
+    /// (after the offset and shift), else the key and chord, else `None`.
+    /// Lock and allocation free.
+    pub fn target_at(&self, secs: f64) -> Option<SongTarget> {
+        let guide = self.guide.load();
+        if let Some(g) = guide.as_deref() {
+            let t = secs - self.guide_offset_ms.get() as f64 / 1000.0;
+            if t >= 0.0 {
+                if let Some(note) = g.note_at((t * g.rate as f64) as u64) {
+                    let shift = self.guide_shift.get().round();
+                    return Some(SongTarget::Guide(note as f32 + shift));
+                }
+            }
+        }
+        let harmony = self.harmony.load();
+        let seg = harmony
+            .as_deref()
+            .and_then(|h| h.at((secs.max(0.0) * h.rate as f64) as u64))?;
+        Some(SongTarget::Notes {
+            scale: seg.scale,
+            chord: seg.chord_mask(),
+        })
     }
 }
 
