@@ -79,6 +79,7 @@ impl Processor {
         let base = if pitch_on { p.pitch_semitones.get() } else { 0.0 };
         let auto_key = p.auto_key.get();
         let manual_mask = p.tune_mask.load(Ordering::Relaxed);
+        let amount = p.tune_amount.get().clamp(0.0, 1.0);
         let gate_on = p.gate_on.get();
         let gate_threshold = p.gate_threshold.get();
         let comp_on = p.comp_on.get();
@@ -155,8 +156,8 @@ impl Processor {
                     };
                     self.target = match hz {
                         Some(hz) => {
-                            let sung = hz_to_midi(hz);
-                            snap_to_mask(sung + base, mask) - sung
+                            let wanted = hz_to_midi(hz) + base;
+                            base + (snap_to_mask(wanted, mask) - wanted) * amount
                         }
                         None => base,
                     };
@@ -241,6 +242,24 @@ mod tests {
         let hz = crate::pitch::tests::measure_hz(&buf[24_000..], sr);
         assert!((hz - 440.0).abs() < 3.0, "got {hz} Hz");
         assert!((meters.pitch_hz.get() - 430.0).abs() < 5.0);
+    }
+
+    #[test]
+    fn correction_amount_pulls_part_way() {
+        let sr = 48_000.0;
+        for (amount, expect) in [(0.0, 430.0), (0.5, 435.0), (1.0, 440.0)] {
+            let params = Arc::new(Params::default());
+            params.tune_on.set(true);
+            params.tune_speed.set(0.0);
+            params.tune_amount.set(amount);
+            let mut proc = Processor::new(sr, params, Arc::new(Meters::default()));
+            let mut buf = sine(430.0, sr, sr as usize);
+            for chunk in buf.chunks_mut(512) {
+                proc.process(chunk);
+            }
+            let hz = crate::pitch::tests::measure_hz(&buf[24_000..], sr);
+            assert!((hz - expect).abs() < 2.0, "amount {amount}: got {hz} Hz");
+        }
     }
 
     #[test]

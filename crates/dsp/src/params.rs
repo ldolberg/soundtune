@@ -62,6 +62,8 @@ pub struct Params {
     pub tune_mask: AtomicU32,
     /// 0 = instant (robotic) correction, 1 = slow and natural.
     pub tune_speed: AtomicF32,
+    /// How far notes are pulled to the scale: 0 = not at all, 1 = fully.
+    pub tune_amount: AtomicF32,
 
     pub dist_on: Toggle,
     pub drive: AtomicF32,
@@ -109,6 +111,7 @@ impl Default for Params {
             tune_on: Toggle::new(false),
             tune_mask: AtomicU32::new(0xFFF),
             tune_speed: AtomicF32::new(0.1),
+            tune_amount: AtomicF32::new(1.0),
             dist_on: Toggle::new(false),
             drive: AtomicF32::new(0.5),
             tone: AtomicF32::new(0.5),

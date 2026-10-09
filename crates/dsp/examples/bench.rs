@@ -25,7 +25,7 @@ fn main() {
         })
         .collect();
 
-    let mut report = |name: &str, setup: &dyn Fn(&Params)| {
+    let report = |name: &str, setup: &dyn Fn(&Params)| {
         let params = Arc::new(Params::default());
         setup(&params);
         let mut proc = Processor::new(sr, params, Arc::new(Meters::default()));
