@@ -205,11 +205,48 @@ pub fn detect_chords(frames: &[[f32; 12]], key: Option<Key>) -> Vec<Option<Chord
     out
 }
 
+/// A key and its relative (A minor and C major) share their notes, so the
+/// pitch class profile alone often cannot tell them apart. The one whose
+/// tonic chord sounds longer, and opens and closes the song, wins.
+fn settle_relative(key: Key, chords: &[Option<Chord>]) -> Key {
+    let relative = if key.minor {
+        Key {
+            root: (key.root + 3) % 12,
+            minor: false,
+        }
+    } else {
+        Key {
+            root: (key.root + 9) % 12,
+            minor: true,
+        }
+    };
+    let voiced: Vec<Chord> = chords.iter().flatten().copied().collect();
+    let score = |k: Key| {
+        let tonic = Chord {
+            root: k.root,
+            minor: k.minor,
+        };
+        let held = voiced.iter().filter(|&&c| c == tonic).count() as f32;
+        let ends = [voiced.first(), voiced.last()]
+            .iter()
+            .filter(|c| **c == Some(&tonic))
+            .count() as f32;
+        // Opening or closing on the tonic is worth 2 s of it.
+        held + ends * 2.0 / FRAME_SECS
+    };
+    if score(relative) > score(key) {
+        relative
+    } else {
+        key
+    }
+}
+
 /// Builds the harmony timeline from an already computed chromagram.
 pub fn harmony_from_chroma(chroma: &Chromagram, length: u64) -> Harmony {
     let key = estimate_key(&chroma.frames);
     let scale = key.map_or(0xFFF, Key::mask);
     let chords = detect_chords(&chroma.frames, key);
+    let key = key.map(|k| settle_relative(k, &chords));
     let mut segments: Vec<HarmonySegment> = Vec::new();
     for (i, chord) in chords.into_iter().enumerate() {
         let seg = HarmonySegment {
@@ -349,6 +386,34 @@ mod tests {
         // G# is allowed over the E chord although it is not in A minor.
         assert_ne!(e.mask() & 1 << 8, 0);
         assert_eq!(e.scale & 1 << 8, 0);
+    }
+
+    #[test]
+    fn relative_keys_follow_the_tonic_chord() {
+        let rate = 22_050.0;
+        // Am F C G Am: the C major notes, but it opens and closes on Am.
+        let audio = progression(
+            &[
+                &[45.0, 57.0, 60.0, 64.0],
+                &[41.0, 57.0, 60.0, 65.0],
+                &[48.0, 55.0, 60.0, 64.0],
+                &[43.0, 55.0, 59.0, 62.0],
+                &[45.0, 57.0, 60.0, 64.0],
+            ],
+            rate,
+            2.0,
+        );
+        let h = analyse_harmony(&audio, rate);
+        let key = h.key.expect("key");
+        assert_eq!(
+            key,
+            Key {
+                root: 9,
+                minor: true
+            },
+            "got {}",
+            key.name()
+        );
     }
 
     #[test]
