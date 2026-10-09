@@ -7,12 +7,22 @@ use std::time::Duration;
 use gtk::prelude::*;
 use gtk::{gdk, glib};
 use soundtune_dsp::{
-    apply_sing_mode, bypass_all, hz_to_midi, snap_to_mask, Key, Meters, MusicScale, Params, Voice,
-    NOTE_NAMES,
+    apply_sing_mode, bypass_all, hz_to_midi, snap_to_mask, Key, Meters, MusicScale, Params,
+    SongTarget, Voice, NOTE_NAMES, NO_NOTE,
 };
 
 use crate::audio::{self, Engine};
+use crate::songbar::{SongBar, StartFiles};
 use crate::widgets::{Keyboard, Knob, PitchMeter};
+
+/// Start-up options from the command line.
+#[derive(Debug, Default, Clone)]
+pub struct Options {
+    /// Open on the Advanced page.
+    pub advanced: bool,
+    /// Song and melody to load.
+    pub files: StartFiles,
+}
 
 const DEFAULT_DEVICE: &str = "System default";
 
@@ -53,6 +63,14 @@ scale.correction slider { min-width: 20px; min-height: 20px; border-radius: 99px
 .correction-value { color: #4a9eff; font-weight: 700; }
 scale.correction marks label { color: #8a9099; font-size: 0.8em; }
 .feedback { background: #6b1f26; color: #ffe1e3; font-weight: 700; padding: 8px; }
+.song-bar { background: #23272d; border: 1px solid #343941; border-radius: 10px; padding: 10px 16px; }
+.song-time { color: #d6d9de; font-feature-settings: \"tnum\"; }
+.song-info { color: #8a9099; }
+progressbar.song trough { min-height: 6px; border-radius: 99px; background: #2d3239; }
+progressbar.song progress { min-height: 6px; border-radius: 99px; background: linear-gradient(90deg, #4a9eff, #e0479e); }
+button.transport { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; background: #2d3239; color: #d6d9de; border: 1px solid #3b4048; box-shadow: none; }
+button.transport:checked { background: #4a9eff; color: #1b1e23; border-color: #4a9eff; }
+button.note.live:disabled { opacity: 1; }
 ";
 
 pub fn load_css() {
@@ -79,9 +97,44 @@ struct ScaleState {
     buttons: Vec<gtk::ToggleButton>,
     keyboard: Keyboard,
     updating: Cell<bool>,
+    /// The buttons and keyboard show the song's notes, not `mask`.
+    live: Cell<u32>,
 }
 
 impl ScaleState {
+    /// Shows the notes the song allows right now (does not change the
+    /// static scale the autotune falls back to).
+    fn show_live(&self, mask: u32) {
+        if self.live.get() == mask {
+            return;
+        }
+        self.live.set(mask);
+        self.updating.set(true);
+        for (pc, b) in self.buttons.iter().enumerate() {
+            b.set_active(mask & (1 << pc) != 0);
+            b.set_sensitive(false);
+            b.add_css_class("live");
+        }
+        self.keyboard.set_mask(mask);
+        self.updating.set(false);
+    }
+
+    /// Back to showing (and editing) the static scale.
+    fn show_static(&self) {
+        if self.live.get() == 0 {
+            return;
+        }
+        self.live.set(0);
+        for b in &self.buttons {
+            b.set_sensitive(true);
+            b.remove_css_class("live");
+        }
+        let mask = self.mask.get();
+        // Force a refresh of every button.
+        self.mask.set(!mask);
+        self.set_mask(mask);
+    }
+
     fn set_mask(&self, mask: u32) {
         if self.updating.get() {
             return;
@@ -89,6 +142,11 @@ impl ScaleState {
         self.updating.set(true);
         self.mask.set(mask);
         self.params.tune_mask.store(mask, Ordering::Relaxed);
+        if self.live.get() != 0 {
+            // The song's notes stay on show until following stops.
+            self.updating.set(false);
+            return;
+        }
         for (pc, b) in self.buttons.iter().enumerate() {
             b.set_active(mask & (1 << pc) != 0);
         }
@@ -393,7 +451,7 @@ fn separator() -> gtk::Separator {
     s
 }
 
-pub fn build(app: &gtk::Application) {
+pub fn build(app: &gtk::Application, opts: &Options) {
     let params = Arc::new(Params::default());
     let meters = Arc::new(Meters::default());
     let engine: Rc<RefCell<Option<Engine>>> = Rc::new(RefCell::new(None));
@@ -542,6 +600,7 @@ pub fn build(app: &gtk::Application) {
         buttons: buttons.clone(),
         keyboard: keyboard.clone(),
         updating: Cell::new(false),
+        live: Cell::new(0),
     });
     scale.set_scale(0, MusicScale::Major);
     for (pc, b) in buttons.iter().enumerate() {
@@ -720,9 +779,11 @@ pub fn build(app: &gtk::Application) {
         notes.attach(&cents, pc as i32, 0, 1, 1);
         notes.attach(b, pc as i32, 1, 1, 1);
     }
-    let hint = gtk::Label::new(Some(
-        "Autotune snaps to the highlighted notes.\nClick notes or piano keys to edit the scale.",
-    ));
+    const SCALE_HINT: &str =
+        "Autotune snaps to the highlighted notes.\nClick notes or piano keys to edit the scale.";
+    const SONG_HINT: &str = "Following the song: the notes it allows now.\n\
+         Dots mark chord tones, pink the melody note.";
+    let hint = gtk::Label::new(Some(SCALE_HINT));
     hint.add_css_class("cents");
     hint.set_justify(gtk::Justification::Center);
     let panel = gtk::Box::new(gtk::Orientation::Horizontal, 24);
@@ -868,19 +929,21 @@ pub fn build(app: &gtk::Application) {
         "Use headphones: speakers feed your voice back into the microphone and howl.",
     )));
 
+    let song_bar = SongBar::new(&window, Arc::clone(&params), &power);
     let sing_hint = gtk::Label::new(Some(
         "Press the big button and sing. Turn Polish up for a tighter, shinier, studio sound.\n\
-         Auto key listens for a few seconds, then keeps you on the notes of your song.",
+         Open a song and Follow song keeps you in its key and chords (or on its MIDI melody).",
     ));
     sing_hint.add_css_class("sing-hint");
     sing_hint.set_justify(gtk::Justification::Center);
 
-    let sing = gtk::Box::new(gtk::Orientation::Vertical, 22);
+    let sing = gtk::Box::new(gtk::Orientation::Vertical, 16);
     sing.set_valign(gtk::Align::Center);
     sing.set_vexpand(true);
     sing.set_margin_top(18);
     sing.set_margin_bottom(18);
     sing.append(&headphones);
+    sing.append(song_bar.widget());
     sing.append(&popstar);
     sing.append(&sing_row);
     sing.append(&correction_row);
@@ -890,6 +953,9 @@ pub fn build(app: &gtk::Application) {
     stack.add_titled(&sing, Some("sing"), "Sing");
     stack.add_titled(&advanced, Some("advanced"), "Advanced");
     stack.set_vexpand(true);
+    if opts.advanced {
+        stack.set_visible_child_name("advanced");
+    }
     {
         // Presets belong to the advanced view.
         let preset_dd = preset_dd.clone();
@@ -1039,6 +1105,7 @@ pub fn build(app: &gtk::Application) {
         let gr_level = Cell::new(0.0f32);
         let shown_key = Cell::new(Key::NONE);
         let key_dd = key_dd.clone();
+        let (engine, song_bar) = (Rc::clone(&engine), Rc::clone(&song_bar));
         glib::timeout_add_local(Duration::from_millis(33), move || {
             gr_level.set(meters.reduction.take().max(gr_level.get() * 0.85));
             reduction.set_value(gr_level.get().min(20.0) as f64);
@@ -1047,7 +1114,11 @@ pub fn build(app: &gtk::Application) {
             // Auto key: show the detected key in the scale panel too, so
             // switching Auto off keeps it.
             let detected = meters.key.load(Ordering::Relaxed);
-            if params.auto_key.get() {
+            song_bar.refresh();
+            let song_key = song_bar.key_name().filter(|_| song_bar.following());
+            if let Some(name) = song_key {
+                key_label.set_text(&format!("Key: {name} (song)"));
+            } else if params.auto_key.get() {
                 if detected != shown_key.get() {
                     shown_key.set(detected);
                     if let Some(k) = Key::decode(detected) {
@@ -1079,13 +1150,46 @@ pub fn build(app: &gtk::Application) {
             in_meter.set_value(in_level.get().min(1.0) as f64);
             out_meter.set_value(out_level.get().min(1.0) as f64);
 
+            // While following a song, the scale panel and keyboard show
+            // the notes it allows right now. While the autotune runs that
+            // comes from the processor, otherwise from the song position.
+            let running = engine.borrow().is_some();
+            let (mask, chord, guide) = if !song_bar.following() {
+                (0, 0, NO_NOTE)
+            } else if running && params.tune_on.get() {
+                (
+                    meters.song_mask.load(Ordering::Relaxed),
+                    meters.song_chord.load(Ordering::Relaxed),
+                    meters.guide_note.load(Ordering::Relaxed),
+                )
+            } else {
+                let song = &params.song;
+                SongTarget::display(song.target_at(song.seconds()))
+            };
+            let hint_text = if mask != 0 {
+                scale.show_live(mask);
+                let guide = (guide != NO_NOTE).then_some(guide as i32);
+                keyboard.set_song(true, chord, guide);
+                SONG_HINT
+            } else {
+                scale.show_static();
+                keyboard.set_song(false, 0, None);
+                SCALE_HINT
+            };
+            if hint.text() != hint_text {
+                hint.set_text(hint_text);
+            }
+
             let hz = meters.pitch_hz.get();
             if hz > 0.0 {
                 let sung = hz_to_midi(hz);
-                let target = if params.tune_on.get() {
-                    snap_to_mask(sung, params.tune_mask.load(Ordering::Relaxed))
-                } else {
+                let steered = meters.target_note.get();
+                let target = if !params.tune_on.get() {
                     sung.round()
+                } else if steered > 0.0 {
+                    steered.round()
+                } else {
+                    snap_to_mask(sung, params.tune_mask.load(Ordering::Relaxed))
                 };
                 let cents = ((sung - target) * 100.0) as f64;
                 shown_cents.set(shown_cents.get() + (cents - shown_cents.get()) * 0.5);
@@ -1103,4 +1207,5 @@ pub fn build(app: &gtk::Application) {
     }
 
     window.present();
+    opts.files.load(&song_bar);
 }
