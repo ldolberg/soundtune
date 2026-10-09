@@ -10,6 +10,9 @@ use super::{rgb, ACCENT, MUTED};
 const START: f64 = 0.75 * PI;
 const SWEEP: f64 = 1.5 * PI;
 
+/// Called with the new value whenever the knob changes.
+type ValueCallback = Box<dyn Fn(f64)>;
+
 struct Inner {
     value: Cell<f64>,
     default: Cell<f64>,
@@ -18,7 +21,7 @@ struct Inner {
     step: Cell<f64>,
     bipolar: Cell<bool>,
     format: Box<dyn Fn(f64) -> String>,
-    callbacks: RefCell<Vec<Box<dyn Fn(f64)>>>,
+    callbacks: RefCell<Vec<ValueCallback>>,
     area: gtk::DrawingArea,
     label: gtk::Label,
 }

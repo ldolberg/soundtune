@@ -14,11 +14,14 @@ fn is_black(n: i32) -> bool {
     matches!(n.rem_euclid(12), 1 | 3 | 6 | 8 | 10)
 }
 
+/// Called with the new scale mask when a key is toggled.
+type ToggleCallback = Box<dyn Fn(u32)>;
+
 #[derive(Default)]
 struct State {
     mask: Cell<u32>,
     current: Cell<Option<i32>>,
-    on_toggle: RefCell<Option<Box<dyn Fn(u32)>>>,
+    on_toggle: RefCell<Option<ToggleCallback>>,
 }
 
 /// Piano keyboard: notes in the scale are orange, the sung note is blue.
