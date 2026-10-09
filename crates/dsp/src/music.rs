@@ -76,6 +76,33 @@ pub fn snap_to_mask(midi: f32, mask: u32) -> f32 {
     best
 }
 
+/// Like [`snap_to_mask`], but notes in `preferred` count as `bias` semitones
+/// closer than they are, so a note sung between a chord tone and a passing
+/// note lands on the chord tone. Preferred notes need not be in `mask`.
+pub fn snap_preferring(midi: f32, mask: u32, preferred: u32, bias: f32) -> f32 {
+    let allowed = (mask | preferred) & 0xFFF;
+    if allowed == 0 {
+        return midi;
+    }
+    let base = midi.round() as i32;
+    let mut best = base as f32;
+    let mut best_cost = f32::MAX;
+    for n in base - 7..=base + 7 {
+        let bit = 1 << n.rem_euclid(12);
+        if allowed & bit != 0 {
+            let mut cost = (n as f32 - midi).abs();
+            if preferred & bit != 0 {
+                cost -= bias;
+            }
+            if cost < best_cost {
+                best_cost = cost;
+                best = n as f32;
+            }
+        }
+    }
+    best
+}
+
 /// Name like "A4" for a MIDI note number.
 pub fn note_name(midi: f32) -> String {
     let n = midi.round() as i32;
@@ -116,5 +143,22 @@ mod tests {
         // Only A enabled: everything goes to an A.
         assert_eq!(snap_to_mask(66.0, 1 << 9), 69.0);
         assert_eq!(snap_to_mask(61.3, 0), 61.3);
+    }
+
+    #[test]
+    fn chord_tones_win_close_calls() {
+        let c_major = MusicScale::Major.mask(0);
+        let c_triad = 1 | 1 << 4 | 1 << 7;
+        // D# sits between D and E: the chord tone E wins.
+        assert_eq!(snap_preferring(63.0, c_major, c_triad, 0.4), 64.0);
+        // A clean D or F stays (passing notes are still allowed).
+        assert_eq!(snap_preferring(62.1, c_major, c_triad, 0.4), 62.0);
+        assert_eq!(snap_preferring(65.0, c_major, c_triad, 0.4), 65.0);
+        // Chord tones outside the scale are allowed (E major chord in C: G#).
+        assert_eq!(
+            snap_preferring(68.2, c_major, 1 << 4 | 1 << 8 | 1 << 11, 0.4),
+            68.0
+        );
+        assert_eq!(snap_preferring(61.3, 0, 0, 0.4), 61.3);
     }
 }
