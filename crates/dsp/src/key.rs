@@ -85,6 +85,43 @@ fn normalise(v: &[f32; 12]) -> [f32; 12] {
     out
 }
 
+/// Correlation of a normalised pitch class histogram with `key`'s profile.
+fn fit(profiles: &[[f32; 12]; 2], hist: &[f32; 12], key: Key) -> f32 {
+    let profile = &profiles[key.minor as usize];
+    (0..12)
+        .map(|pc| hist[pc] * profile[(pc + 12 - key.root as usize) % 12])
+        .sum()
+}
+
+fn best_key_normalised(profiles: &[[f32; 12]; 2], hist: &[f32; 12]) -> (Key, f32) {
+    let mut best = Key {
+        root: 0,
+        minor: false,
+    };
+    let mut best_fit = f32::MIN;
+    for v in 0..24 {
+        let key = Key::decode(v).unwrap_or(best);
+        let f = fit(profiles, hist, key);
+        if f > best_fit {
+            best_fit = f;
+            best = key;
+        }
+    }
+    (best, best_fit)
+}
+
+/// The major or minor key whose Krumhansl-Kessler profile correlates best
+/// with a pitch class histogram (bin 0 = C), with that correlation (-1..1).
+/// `None` for an empty or flat histogram.
+pub fn best_key(hist: &[f32; 12]) -> Option<(Key, f32)> {
+    let norm = normalise(hist);
+    if norm.iter().all(|&x| x == 0.0) {
+        return None;
+    }
+    let profiles = [normalise(&MAJOR), normalise(&MINOR)];
+    Some(best_key_normalised(&profiles, &norm))
+}
+
 impl KeyDetector {
     /// `rate` is how many pitch estimates arrive per second while singing,
     /// `window` the memory in seconds.
@@ -126,34 +163,15 @@ impl KeyDetector {
         self.evaluate()
     }
 
-    fn fit(&self, hist: &[f32; 12], key: Key) -> f32 {
-        let profile = &self.profiles[key.minor as usize];
-        (0..12)
-            .map(|pc| hist[pc] * profile[(pc + 12 - key.root as usize) % 12])
-            .sum()
-    }
-
     fn evaluate(&mut self) -> bool {
         if self.hist.iter().sum::<f32>() < self.min_weight {
             return false;
         }
         let hist = normalise(&self.hist);
-        let mut best = Key {
-            root: 0,
-            minor: false,
-        };
-        let mut best_fit = f32::MIN;
-        for v in 0..24 {
-            let key = Key::decode(v).unwrap_or(best);
-            let fit = self.fit(&hist, key);
-            if fit > best_fit {
-                best_fit = fit;
-                best = key;
-            }
-        }
+        let (best, best_fit) = best_key_normalised(&self.profiles, &hist);
         let switch = match self.key {
             None => true,
-            Some(cur) => cur != best && best_fit > self.fit(&hist, cur) + SWITCH_MARGIN,
+            Some(cur) => cur != best && best_fit > fit(&self.profiles, &hist, cur) + SWITCH_MARGIN,
         };
         if switch {
             self.key = Some(best);

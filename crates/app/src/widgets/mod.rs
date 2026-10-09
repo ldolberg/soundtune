@@ -13,6 +13,7 @@ use gtk::cairo;
 pub const ACCENT: (f64, f64, f64) = (0.29, 0.62, 1.0);
 pub const ORANGE: (f64, f64, f64) = (0.94, 0.60, 0.19);
 pub const MUTED: (f64, f64, f64) = (0.36, 0.38, 0.42);
+pub const PINK: (f64, f64, f64) = (0.88, 0.28, 0.62);
 
 fn rgb(cr: &cairo::Context, c: (f64, f64, f64)) {
     cr.set_source_rgb(c.0, c.1, c.2);

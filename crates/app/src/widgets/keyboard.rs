@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gtk::cairo;
 use gtk::prelude::*;
 
-use super::{centered_text, rgb, ACCENT, ORANGE};
+use super::{centered_text, rgb, ACCENT, ORANGE, PINK};
 
 /// MIDI range shown: C2..C6.
 const LOW: i32 = 36;
@@ -20,12 +20,19 @@ type ToggleCallback = Box<dyn Fn(u32)>;
 #[derive(Default)]
 struct State {
     mask: Cell<u32>,
+    /// Chord tones (marked with a dot) while following a song.
+    chord: Cell<u32>,
+    /// Guide melody note (pink) while following a song.
+    guide: Cell<Option<i32>>,
     current: Cell<Option<i32>>,
+    /// Clicks are ignored while the song drives the keyboard.
+    locked: Cell<bool>,
     on_toggle: RefCell<Option<ToggleCallback>>,
 }
 
 /// Piano keyboard: notes in the scale are orange, the sung note is blue.
-/// Clicking a key toggles its pitch class in the scale.
+/// While following a song, chord tones carry a dot and the guide melody
+/// note is pink. Clicking a key toggles its pitch class in the scale.
 #[derive(Clone)]
 pub struct Keyboard {
     area: gtk::DrawingArea,
@@ -88,6 +95,9 @@ impl Keyboard {
             let (Some(s), Some(a)) = (s.upgrade(), a.upgrade()) else {
                 return;
             };
+            if s.locked.get() {
+                return;
+            }
             let geo = Geometry::new(a.width() as f64, a.height() as f64);
             if let Some(n) = geo.key_at(x, y) {
                 if let Some(cb) = s.on_toggle.borrow().as_ref() {
@@ -109,6 +119,18 @@ impl Keyboard {
         self.area.queue_draw();
     }
 
+    /// Shows the song's chord tones and guide note, and locks clicks while
+    /// `follow` is true. Redraws only on change.
+    pub fn set_song(&self, follow: bool, chord: u32, guide: Option<i32>) {
+        let s = &self.state;
+        if s.locked.get() != follow || s.chord.get() != chord || s.guide.get() != guide {
+            s.locked.set(follow);
+            s.chord.set(chord);
+            s.guide.set(guide);
+            self.area.queue_draw();
+        }
+    }
+
     pub fn set_current(&self, note: Option<i32>) {
         if self.state.current.get() != note {
             self.state.current.set(note);
@@ -126,7 +148,19 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
     let geo = Geometry::new(w, h);
     let mask = s.mask.get();
     let current = s.current.get();
+    let guide = s.guide.get();
+    let chord = s.chord.get();
     let in_scale = |n: i32| mask & (1 << n.rem_euclid(12)) != 0;
+    let in_chord = |n: i32| chord & (1 << n.rem_euclid(12)) != 0;
+    let dot = |x: f64, y: f64, r: f64, light: bool| {
+        if light {
+            cr.set_source_rgb(0.95, 0.95, 0.95);
+        } else {
+            cr.set_source_rgb(0.15, 0.15, 0.17);
+        }
+        cr.arc(x, y, r, 0.0, std::f64::consts::TAU);
+        let _ = cr.fill();
+    };
 
     cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
     cr.set_font_size(10.0);
@@ -135,12 +169,17 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
         cr.rectangle(x + 0.5, 0.0, geo.white_w - 1.0, h);
         if current == Some(n) {
             rgb(cr, ACCENT);
+        } else if guide == Some(n) {
+            rgb(cr, PINK);
         } else if in_scale(n) {
             rgb(cr, ORANGE);
         } else {
             cr.set_source_rgb(0.93, 0.93, 0.93);
         }
         let _ = cr.fill();
+        if in_chord(n) {
+            dot(x + geo.white_w / 2.0, h - 28.0, geo.white_w * 0.16, false);
+        }
         if n % 12 == 0 {
             cr.set_source_rgb(0.15, 0.15, 0.17);
             centered_text(
@@ -156,6 +195,8 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
         cr.rectangle(geo.black_x(n), 0.0, geo.black_w, geo.black_h);
         if current == Some(n) {
             rgb(cr, ACCENT);
+        } else if guide == Some(n) {
+            rgb(cr, PINK);
         } else if in_scale(n) {
             cr.set_source_rgb(0.72, 0.42, 0.08);
         } else {
@@ -165,5 +206,9 @@ fn draw(s: &State, cr: &cairo::Context, w: f64, h: f64) {
         cr.set_source_rgb(0.05, 0.05, 0.06);
         cr.set_line_width(1.0);
         let _ = cr.stroke();
+        if in_chord(n) {
+            let x = geo.black_x(n) + geo.black_w / 2.0;
+            dot(x, geo.black_h - 12.0, geo.black_w * 0.22, true);
+        }
     }
 }

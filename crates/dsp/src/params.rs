@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
+use crate::SongState;
+
 /// An `f32` that can be shared between the UI thread and the audio thread.
 #[derive(Debug)]
 pub struct AtomicF32(AtomicU32);
@@ -44,6 +46,11 @@ impl Toggle {
 
     pub fn set(&self, v: bool) {
         self.0.store(v, Ordering::Relaxed);
+    }
+
+    /// Returns the flag and clears it.
+    pub fn take(&self) -> bool {
+        self.0.swap(false, Ordering::Relaxed)
     }
 }
 
@@ -100,6 +107,9 @@ pub struct Params {
     pub auto_key: Toggle,
     /// Turn the output down when acoustic feedback is detected.
     pub feedback_guard: Toggle,
+
+    /// Backing track, song timelines and transport.
+    pub song: SongState,
 }
 
 impl Default for Params {
@@ -132,6 +142,7 @@ impl Default for Params {
             double_detune: AtomicF32::new(10.0),
             auto_key: Toggle::new(false),
             feedback_guard: Toggle::new(true),
+            song: SongState::default(),
         }
     }
 }
@@ -151,7 +162,22 @@ pub struct Meters {
     pub reduction: AtomicF32,
     /// Set while the feedback guard is turning the output down.
     pub feedback: Toggle,
+    /// Note (MIDI number) the autotune is steering the voice to, in the
+    /// singer's own pitch (before High Pitch), 0 when there is none
+    /// (silence). Only updated while the autotune is on.
+    pub target_note: AtomicF32,
+    /// While following a song: the notes allowed right now (bit 0 = C),
+    /// 0 when not following.
+    pub song_mask: AtomicU32,
+    /// While following a song: the current chord's notes, 0 if none.
+    pub song_chord: AtomicU32,
+    /// While following a song: the guide note (MIDI number, after the
+    /// shift), `NO_NOTE` when no guide note is sounding.
+    pub guide_note: AtomicU32,
 }
+
+/// `Meters::guide_note` when there is no guide note.
+pub const NO_NOTE: u32 = u32::MAX;
 
 impl Default for Meters {
     fn default() -> Self {
@@ -162,6 +188,10 @@ impl Default for Meters {
             key: AtomicU32::new(crate::Key::NONE),
             reduction: AtomicF32::new(0.0),
             feedback: Toggle::new(false),
+            target_note: AtomicF32::new(0.0),
+            song_mask: AtomicU32::new(0),
+            song_chord: AtomicU32::new(0),
+            guide_note: AtomicU32::new(NO_NOTE),
         }
     }
 }
